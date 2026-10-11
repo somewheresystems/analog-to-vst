@@ -52,12 +52,12 @@ The "skill" is the instruction sheet the agent follows.
 
 - **Hermes Agent:**
   ```
-  hermes skills install somewheresystems/analog-to-vst
+  hermes skills install somewheresystems/analog-to-vst/skills/analog-to-vst
   ```
 - **Claude Code:**
   ```
   git clone --depth 1 https://github.com/somewheresystems/analog-to-vst ~/analog-to-vst
-  mkdir -p ~/.claude/skills && cp -R ~/analog-to-vst ~/.claude/skills/analog-to-vst
+  mkdir -p ~/.claude/skills && cp -R ~/analog-to-vst/skills/analog-to-vst ~/.claude/skills/
   ```
 
 ## Step 4: Ask the agent to build the plugin
@@ -112,7 +112,7 @@ If you're comfortable editing text files:
 1. `git clone --depth 1 https://github.com/somewheresystems/analog-to-vst && python3 analog-to-vst/scripts/new_project.py my-plugin --name "My Plugin"`
 2. In `my-plugin`, edit `reference/circuit.cir` (the SPICE netlist) and `dsp/src/model.rs` (the same circuit for the plugin). The example circuit already in both files shows the format; keep the two identical.
 3. List knob settings to test in `settings.txt`.
-4. Run `./validate.sh`, read the reports, fix differences (`references/diagnosing.md` lists causes) and repeat until all pass.
+4. Run `./validate.sh`, read the reports, fix differences (`skills/analog-to-vst/references/diagnosing.md` lists causes) and repeat until all pass.
 5. Run `./install.sh`.
 
 ## Troubleshooting
@@ -120,7 +120,7 @@ If you're comfortable editing text files:
 | Problem | What to do |
 |---|---|
 | `command not found` for cargo, uv or ngspice | Close and reopen Terminal; if it persists, repeat step 2.3 |
-| A setting keeps failing | Ask the agent to read the report and `references/diagnosing.md`, and to check every component value against the source |
+| A setting keeps failing | Ask the agent to read the report and the skill's `references/diagnosing.md`, and to check every component value against the source |
 | The agent says a part is unsupported (transformer, tube, JFET, optical cell) | The circuit needs a solver extension first; the agent can describe what's involved |
 | Plugin doesn't appear in the DAW | Rescan plugins; check `~/Library/Audio/Plug-Ins/VST3`; Logic needs Audio Units (not supported) |
 | High CPU | Expected; bounce or freeze tracks |
@@ -129,4 +129,4 @@ If you're comfortable editing text files:
 
 - Name it yourself. Brand and model names (for example "Tube Screamer") are trademarks: say "modeled after" in the description, never use them as the plugin's name.
 - Don't copy schematic images, manuals, impulse responses or faceplate designs into what you distribute. Component values and topologies are facts and fine to model.
-- VST3 builds are distributed under GPLv3 (because of the VST3 library this uses); CLAP builds can stay MIT. More in `references/legal.md`.
+- VST3 builds are distributed under GPLv3 (because of the VST3 library this uses); CLAP builds can stay MIT. More in `skills/analog-to-vst/references/legal.md`.

@@ -5,17 +5,18 @@ An agent skill (Hermes Agent, Claude Code) and project template for turning an a
 The circuit is written twice from its published component values: as a SPICE netlist, simulated by ngspice, and as a real-time circuit model in Rust (nodal DK method, oversampled to at least 576 kHz). Both get the same test signals; the plugin ships only when it matches SPICE within tight tolerances on frequency response, compression, harmonics, dynamics and a sample-by-sample null. No hardware or captured audio needed.
 
 - **Not a coder?** Read [GUIDE.md](GUIDE.md): plain-language steps from installing tools to loading the plugin in your DAW.
-- **Agent instructions:** [SKILL.md](SKILL.md)
-- **How it works:** [references/method.md](references/method.md), failures and fixes in [references/diagnosing.md](references/diagnosing.md), legal lines in [references/legal.md](references/legal.md)
+- **Agent instructions:** [skills/analog-to-vst/SKILL.md](skills/analog-to-vst/SKILL.md)
+- **How it works:** [method](skills/analog-to-vst/references/method.md), failures and fixes in [diagnosing](skills/analog-to-vst/references/diagnosing.md), legal lines in [legal](skills/analog-to-vst/references/legal.md)
 
 ## Install the skill
 
 ```bash
 # Hermes Agent
-hermes skills install somewheresystems/analog-to-vst
+hermes skills install somewheresystems/analog-to-vst/skills/analog-to-vst
 
 # Claude Code
-git clone --depth 1 https://github.com/somewheresystems/analog-to-vst ~/.claude/skills/analog-to-vst
+git clone --depth 1 https://github.com/somewheresystems/analog-to-vst /tmp/analog-to-vst
+mkdir -p ~/.claude/skills && cp -R /tmp/analog-to-vst/skills/analog-to-vst ~/.claude/skills/
 ```
 
 Then ask your agent: *"Use the analog-to-vst skill to make a plugin of the [circuit], from [schematic link or parts list]."*

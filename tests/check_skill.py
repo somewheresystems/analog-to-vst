@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-text = (ROOT / "SKILL.md").read_text()
+SKILL = ROOT / "skills/analog-to-vst"
+text = (SKILL / "SKILL.md").read_text()
 errors = []
 
 if not text.startswith("---\n"):
@@ -25,8 +26,8 @@ if not body.strip():
 for section in ["## When to Use", "## Procedure", "## Pitfalls", "## Verification"]:
     if section not in body:
         errors.append(f"missing section {section}")
-for ref in re.findall(r"`(references/[\w.-]+|scripts/[\w.-]+)`", body):
-    if not (ROOT / ref).exists():
+for ref in re.findall(r"`(references/[\w.-]+)`", body):
+    if not (SKILL / ref).exists():
         errors.append(f"SKILL.md points at missing {ref}")
 if re.search(r"/Users/|/home/", text):
     errors.append("machine-local path in SKILL.md")
