@@ -19,6 +19,7 @@ from scipy import signal as sps
 
 OVERSAMPLE = 4
 SECTION_TIMEOUT_S = 900
+NOISE_FLOOR_V = 1e-9
 PASSBAND_HZ = 20_000
 ATTENUATION_DB = 120
 
@@ -77,6 +78,9 @@ def run_section(template: Template, params: dict, x: np.ndarray, rate: int, work
     src = work / f"{name}.txt"
     # filesource interpolates linearly between points (pre-compensated here) and reads past its
     # last point at the final timestep (padded beyond the stop time).
+    # A -180 dB noise floor keeps decaying currents out of the denormal range in silent gaps, which
+    # x86 CPUs process up to ~100x slower (measured: a 0.6 s section took 12.7 s with it, >120 s without).
+    x = x + NOISE_FLOOR_V * np.random.default_rng(0).standard_normal(len(x))
     padded = np.concatenate([np.convolve(x, interpolation_compensation(), mode="same"), np.zeros(16)])
     np.savetxt(src, np.column_stack([np.arange(len(padded)) / rate, padded]), fmt="%.10e")
     step = 1 / rate
