@@ -5,6 +5,7 @@ the circuit's DC operating point, then stitched and decimated. Sections are sepa
 longer than the circuit's settling time, so this matches one continuous run.
 """
 
+import multiprocessing
 import os
 import subprocess
 import sys
@@ -130,7 +131,11 @@ def render(netlist: Path, stimulus: np.ndarray, manifest: dict, params: dict, jo
     template = Template(netlist.read_text())
     gap = int(0.5 * fs)
     out = np.zeros_like(up)
-    with tempfile.TemporaryDirectory() as tmp, ProcessPoolExecutor(jobs or os.cpu_count()) as pool:
+    with (
+        tempfile.TemporaryDirectory() as tmp,
+        ProcessPoolExecutor(jobs or os.cpu_count(), mp_context=multiprocessing.get_context("spawn")) as pool,
+    ):
+        # Spawned, not forked: forking after NumPy starts its thread pool can deadlock on Linux.
         work = Path(tmp)
         futures = []
         for i, sec in enumerate(manifest["sections"]):
