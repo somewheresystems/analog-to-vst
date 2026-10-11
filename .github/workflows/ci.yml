@@ -36,7 +36,7 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
           cargo test --workspace
           cargo xtask bundle plugin --release
-          test -d "target/bundled/Demo Drive.vst3" && test -d "target/bundled/Demo Drive.clap"
+          test -e "target/bundled/Demo Drive.vst3" && test -e "target/bundled/Demo Drive.clap"
 
   harness:
     runs-on: ubuntu-latest
