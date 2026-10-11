@@ -61,6 +61,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: template
+      - name: SPICE smoke test (one short section)
+        working-directory: template/harness
+        run: timeout 300 uv run python ../../tests/spice_smoke.py ..
       - name: Validate the example circuit against SPICE (default knobs, quick pack)
         working-directory: template
         run: |
