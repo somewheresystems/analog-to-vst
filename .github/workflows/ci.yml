@@ -66,7 +66,8 @@ jobs:
         run: |
           rustup show active-toolchain || rustup toolchain install
           echo default > "$RUNNER_TEMP/settings.txt"
-          QUICK=1 SETTINGS="$RUNNER_TEMP/settings.txt" ./validate.sh
+          ngspice --version | head -3
+          QUICK=1 VERBOSE=1 SETTINGS="$RUNNER_TEMP/settings.txt" ./validate.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

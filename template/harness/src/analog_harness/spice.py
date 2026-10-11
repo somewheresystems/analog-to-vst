@@ -7,6 +7,7 @@ longer than the circuit's settling time, so this matches one continuous run.
 
 import os
 import subprocess
+import sys
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -87,12 +88,17 @@ def run_section(template: Template, params: dict, x: np.ndarray, rate: int, work
         # below 0.002 dB at 20 kHz.
         ANALYSIS=".options interp reltol=1e-6 abstol=1e-15 vntol=1e-9\n.save v(out)\n"
         f".tran {step:.12e} {(len(x) - 1) * step:.12e} 0 {step / 4:.12e}\n"
-        f".control\nset filetype=binary\nrun\nwrite {raw} v(out)\nquit\n.endc",
+        f".control\nset noaskquit\nset filetype=binary\nrun\nwrite {raw} v(out)\nquit\n.endc",
     )
     cir.write_text(netlist)
     try:
         result = subprocess.run(
-            ["ngspice", "-b", str(cir)], check=False, capture_output=True, text=True, timeout=SECTION_TIMEOUT_S
+            ["ngspice", "-b", str(cir)],
+            check=False,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=SECTION_TIMEOUT_S,
         )
     except subprocess.TimeoutExpired as e:
         tail = (e.stdout or b"")[-2000:]
@@ -106,12 +112,14 @@ def run_section(template: Template, params: dict, x: np.ndarray, rate: int, work
 def operating_point(netlist: Path, params: dict) -> str:
     """ngspice's DC operating point for the netlist with the input at 0 V."""
     text = Template(netlist.read_text()).substitute(
-        params, SOURCE="VIN in 0 DC 0", ANALYSIS=".control\nop\nprint all\nquit\n.endc"
+        params, SOURCE="VIN in 0 DC 0", ANALYSIS=".control\nset noaskquit\nop\nprint all\nquit\n.endc"
     )
     with tempfile.TemporaryDirectory() as tmp:
         cir = Path(tmp) / "op.cir"
         cir.write_text(text)
-        out = subprocess.run(["ngspice", "-b", str(cir)], check=False, capture_output=True, text=True).stdout
+        out = subprocess.run(
+            ["ngspice", "-b", str(cir)], check=False, stdin=subprocess.DEVNULL, capture_output=True, text=True
+        ).stdout
     return "\n".join(line for line in out.splitlines() if " = " in line)
 
 
@@ -129,6 +137,7 @@ def render(netlist: Path, stimulus: np.ndarray, manifest: dict, params: dict, jo
             a = sec["start"] * OVERSAMPLE
             b = min((sec["start"] + sec["length"] + gap) * OVERSAMPLE, len(up))
             futures.append((a, b, pool.submit(run_section, template, params, up[a:b], rate, work, f"s{i:03d}")))
-        for a, b, f in futures:
+        for k, (a, b, f) in enumerate(futures, 1):
             out[a:b] = f.result()
+            print(f"  section {k}/{len(futures)} done", file=sys.stderr, flush=True)
     return downsample(out, fs)
