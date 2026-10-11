@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validates the model against its SPICE reference at every knob setting in settings.txt
-# (or the file named by $SETTINGS).
+# (or the file named by $SETTINGS). QUICK=1 uses a shorter test pack (for CI).
 # Writes validation/<setting>/report.md (with plots) and validation/summary.md.
 # Exits non-zero if any check fails. SPICE references are reused while the netlist is unchanged.
 set -euo pipefail
@@ -12,7 +12,7 @@ done
 
 cargo build --quiet --release -p render
 mkdir -p validation
-[ -f validation/pack/pack.json ] || (cd harness && uv run --quiet harness signals ../validation/pack >/dev/null)
+[ -f validation/pack/pack.json ] || (cd harness && uv run --quiet harness signals ${QUICK:+--quick} ../validation/pack >/dev/null)
 
 netlist_hash=$(shasum reference/circuit.cir | cut -d' ' -f1)
 status=0

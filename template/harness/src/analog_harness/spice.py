@@ -16,6 +16,7 @@ import numpy as np
 from scipy import signal as sps
 
 OVERSAMPLE = 4
+SECTION_TIMEOUT_S = 900
 PASSBAND_HZ = 20_000
 ATTENUATION_DB = 120
 
@@ -89,7 +90,13 @@ def run_section(template: Template, params: dict, x: np.ndarray, rate: int, work
         f".control\nset filetype=binary\nrun\nwrite {raw} v(out)\nquit\n.endc",
     )
     cir.write_text(netlist)
-    result = subprocess.run(["ngspice", "-b", str(cir)], check=False, capture_output=True, text=True)
+    try:
+        result = subprocess.run(
+            ["ngspice", "-b", str(cir)], check=False, capture_output=True, text=True, timeout=SECTION_TIMEOUT_S
+        )
+    except subprocess.TimeoutExpired as e:
+        tail = (e.stdout or b"")[-2000:]
+        raise RuntimeError(f"ngspice timed out on {name} after {SECTION_TIMEOUT_S} s:\n{tail!r}") from e
     y = read_raw(raw, "v(out)") if raw.exists() else np.empty(0)
     if result.returncode != 0 or len(y) != len(x):
         raise RuntimeError(f"ngspice failed on {name} (exit {result.returncode}):\n{result.stdout[-2000:]}")

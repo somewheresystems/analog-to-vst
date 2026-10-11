@@ -38,6 +38,7 @@ def main():
     s = sub.add_parser("signals", help="write pack.wav and pack.json")
     s.add_argument("out_dir", type=Path)
     s.add_argument("--rate", type=int, default=96_000)
+    s.add_argument("--quick", action="store_true", help="shorter pack with fewer levels, for CI")
 
     a = sub.add_parser("analyze", help="measure one capture of the pack")
     a.add_argument("pack", type=Path, help="pack.json")
@@ -62,7 +63,7 @@ def main():
 
     args = p.parse_args()
     if args.cmd == "signals":
-        print(signals.write(args.out_dir, args.rate))
+        print(signals.write(args.out_dir, args.rate, args.quick))
         return
     if args.cmd == "op":
         params = plain_controls(args.controls)
