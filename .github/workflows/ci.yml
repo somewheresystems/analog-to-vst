@@ -45,7 +45,11 @@ jobs:
         working-directory: template/harness
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ngspice
+      - name: ngspice 47 (Ubuntu's ngspice 42 is far too slow on long test signals)
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install ngspice
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
       - uses: astral-sh/setup-uv@v6
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -56,7 +60,11 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ngspice
+      - name: ngspice 47 (Ubuntu's ngspice 42 is far too slow on long test signals)
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install ngspice
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
       - uses: astral-sh/setup-uv@v6
       - uses: Swatinem/rust-cache@v2
         with:
@@ -70,7 +78,7 @@ jobs:
           rustup show active-toolchain || rustup toolchain install
           echo default > "$RUNNER_TEMP/settings.txt"
           ngspice --version | head -3
-          HARNESS_JOBS=1 QUICK=1 VERBOSE=1 SETTINGS="$RUNNER_TEMP/settings.txt" ./validate.sh
+          QUICK=1 VERBOSE=1 SETTINGS="$RUNNER_TEMP/settings.txt" ./validate.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

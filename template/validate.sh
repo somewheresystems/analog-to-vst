@@ -11,6 +11,11 @@ for tool in cargo uv ngspice; do
   command -v "$tool" >/dev/null || { echo "missing $tool: see GUIDE.md, step 1" >&2; exit 2; }
 done
 
+ngspice_major=$(ngspice --version 2>/dev/null | sed -n 's/.*ngspice-\([0-9][0-9]*\).*/\1/p' | head -1)
+if [[ -n "$ngspice_major" && "$ngspice_major" -lt 47 ]]; then
+  echo "warning: ngspice $ngspice_major found; use 47 or newer (older versions can be over 1000x slower here)" >&2
+fi
+
 cargo build --quiet --release -p render
 mkdir -p validation
 [ -f validation/pack/pack.json ] || (cd harness && uv run --quiet harness signals ${QUICK:+--quick} ../validation/pack >/dev/null)

@@ -29,11 +29,11 @@ Don't use for: algorithmic effects with no circuit (digital reverbs, firmware de
 
 ## Prerequisites
 
-`git`, Rust (`rustup`), `uv`, `ngspice` (XSPICE code models included, as in Homebrew's build), `python3`. Check with:
+`git`, Rust (`rustup`), `uv`, `ngspice` 47 or newer with XSPICE code models (Homebrew's build on macOS and Linux; Ubuntu's apt ngspice 42 is over 1000x slower on the test signals), `python3`. Check with:
 
 `terminal(command="for t in git cargo uv ngspice python3; do command -v $t >/dev/null || echo missing $t; done")`
 
-Install on macOS: `brew install ngspice uv rustup && rustup-init -y`.
+Install with Homebrew (macOS or Linux): `brew install ngspice uv rustup && rustup-init -y`.
 
 ## Procedure
 

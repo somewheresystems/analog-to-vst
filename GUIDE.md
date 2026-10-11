@@ -15,7 +15,7 @@ This guide takes you from "I have a pedal (or preamp, EQ, compressor) I want as 
 
 ## Step 1: What you need
 
-- A Mac (Apple Silicon or Intel) with about 10 GB of free disk space. Linux also works; plugin installation in step 6 is Mac-only.
+- A Mac (Apple Silicon or Intel) with about 10 GB of free disk space. Linux also works if you install the tools with Homebrew (Ubuntu's own ngspice package is too old and far too slow); plugin installation in step 6 is Mac-only.
 - An AI coding agent that can run commands on your computer: [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [Claude Code](https://claude.com/claude-code).
 - Information about the circuit, ideally one of:
   - the name of a well-documented circuit (for example "TS808 overdrive" or "Fuzz Face, silicon version"),
