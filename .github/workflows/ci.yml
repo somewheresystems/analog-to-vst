@@ -53,7 +53,7 @@ jobs:
 
   validate-example:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y ngspice
@@ -70,7 +70,7 @@ jobs:
           rustup show active-toolchain || rustup toolchain install
           echo default > "$RUNNER_TEMP/settings.txt"
           ngspice --version | head -3
-          QUICK=1 VERBOSE=1 SETTINGS="$RUNNER_TEMP/settings.txt" ./validate.sh
+          HARNESS_JOBS=1 QUICK=1 VERBOSE=1 SETTINGS="$RUNNER_TEMP/settings.txt" ./validate.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -131,18 +131,24 @@ def render(netlist: Path, stimulus: np.ndarray, manifest: dict, params: dict, jo
     template = Template(netlist.read_text())
     gap = int(0.5 * fs)
     out = np.zeros_like(up)
-    with (
-        tempfile.TemporaryDirectory() as tmp,
-        ProcessPoolExecutor(jobs or os.cpu_count(), mp_context=multiprocessing.get_context("spawn")) as pool,
-    ):
-        # Spawned, not forked: forking after NumPy starts its thread pool can deadlock on Linux.
+    jobs = jobs or int(os.environ.get("HARNESS_JOBS", "0")) or os.cpu_count() or 1
+    spans = [
+        (sec["start"] * OVERSAMPLE, min((sec["start"] + sec["length"] + gap) * OVERSAMPLE, len(up)))
+        for sec in manifest["sections"]
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
-        futures = []
-        for i, sec in enumerate(manifest["sections"]):
-            a = sec["start"] * OVERSAMPLE
-            b = min((sec["start"] + sec["length"] + gap) * OVERSAMPLE, len(up))
-            futures.append((a, b, pool.submit(run_section, template, params, up[a:b], rate, work, f"s{i:03d}")))
-        for k, (a, b, f) in enumerate(futures, 1):
-            out[a:b] = f.result()
-            print(f"  section {k}/{len(futures)} done", file=sys.stderr, flush=True)
+        args = [(template, params, up[a:b], rate, work, f"s{i:03d}") for i, (a, b) in enumerate(spans)]
+        if jobs == 1:
+            results = (run_section(*x) for x in args)
+            pool = None
+        else:
+            # Spawned, not forked: forking after NumPy starts its thread pool can deadlock on Linux.
+            pool = ProcessPoolExecutor(jobs, mp_context=multiprocessing.get_context("spawn"))
+            results = (f.result() for f in [pool.submit(run_section, *x) for x in args])
+        for k, ((a, b), y) in enumerate(zip(spans, results), 1):
+            out[a:b] = y
+            print(f"  section {k}/{len(spans)} done", file=sys.stderr, flush=True)
+        if pool:
+            pool.shutdown()
     return downsample(out, fs)
