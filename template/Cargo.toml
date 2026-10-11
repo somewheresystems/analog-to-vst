@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["dsp", "render", "plugin", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# Circuit tests are numerically heavy; run them optimized.
+[profile.test]
+opt-level = 3

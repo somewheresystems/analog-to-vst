@@ -1,0 +1,127 @@
+"""Renders the test-signal pack through a SPICE netlist with ngspice, producing a reference capture.
+
+The pack is upsampled 4x, split into sections (each with its trailing gap) that run in parallel from
+the circuit's DC operating point, then stitched and decimated. Sections are separated by silence
+longer than the circuit's settling time, so this matches one continuous run.
+"""
+
+import os
+import subprocess
+import tempfile
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+from string import Template
+
+import numpy as np
+from scipy import signal as sps
+
+OVERSAMPLE = 4
+PASSBAND_HZ = 20_000
+ATTENUATION_DB = 120
+
+
+def oversampling_filter(fs: int) -> np.ndarray:
+    """Kaiser low-pass, same design as crates/oc-dsp/src/oversample.rs.
+
+    Flat to 20 kHz; attenuated by 120 dB from fs - 20 kHz, so nothing aliases into the audio band.
+    Length is rounded up to 4k + 1 taps so the up/down round trip delays by a whole base sample count.
+    """
+    rate = fs * OVERSAMPLE
+    width = 2 * np.pi * (fs - 2 * PASSBAND_HZ) / rate
+    taps = int(np.ceil((ATTENUATION_DB - 7.95) / (2.285 * width))) + 1
+    taps += (1 - taps) % OVERSAMPLE
+    beta = 0.1102 * (ATTENUATION_DB - 8.7)
+    return sps.firwin(taps, fs / 2, window=("kaiser", beta), fs=rate)
+
+
+def upsample(x: np.ndarray, fs: int) -> np.ndarray:
+    h = oversampling_filter(fs)
+    delay = (len(h) - 1) // 2
+    return sps.upfirdn(h * OVERSAMPLE, x, up=OVERSAMPLE)[delay : delay + len(x) * OVERSAMPLE]
+
+
+def downsample(x: np.ndarray, fs: int) -> np.ndarray:
+    h = oversampling_filter(fs)
+    delay = (len(h) - 1) // 2 // OVERSAMPLE
+    return sps.upfirdn(h, x, down=OVERSAMPLE)[delay : delay + len(x) // OVERSAMPLE]
+
+
+def interpolation_compensation(taps: int = 9) -> np.ndarray:
+    """FIR that cancels the sinc^2 response of filesource's linear interpolation below base Nyquist."""
+    m = taps // 2
+    w = np.linspace(0, 2 * np.pi * 0.5 / OVERSAMPLE, 512)
+    target = 1 / np.sinc(w / (2 * np.pi)) ** 2
+    basis = np.column_stack([np.ones_like(w)] + [2 * np.cos(k * w) for k in range(1, m + 1)])
+    c = np.linalg.lstsq(basis, target, rcond=None)[0]
+    return np.concatenate([c[:0:-1], c])
+
+
+def read_raw(path: Path, vector: str) -> np.ndarray:
+    """Reads one real vector from an ngspice binary rawfile."""
+    data = path.read_bytes()
+    marker = b"Binary:\n"
+    header = data[: data.index(marker)].decode()
+    lines = header.splitlines()
+    nvars = int(next(ln for ln in lines if ln.startswith("No. Variables:")).split(":")[1])
+    npoints = int(next(ln for ln in lines if ln.startswith("No. Points:")).split(":")[1])
+    start = lines.index("Variables:") + 1
+    names = [lines[start + i].split()[1].lower() for i in range(nvars)]
+    values = np.frombuffer(data, dtype="<f8", offset=data.index(marker) + len(marker), count=nvars * npoints)
+    return values.reshape(npoints, nvars)[:, names.index(vector.lower())].copy()
+
+
+def run_section(template: Template, params: dict, x: np.ndarray, rate: int, work: Path, name: str) -> np.ndarray:
+    src = work / f"{name}.txt"
+    # filesource interpolates linearly between points (pre-compensated here) and reads past its
+    # last point at the final timestep (padded beyond the stop time).
+    padded = np.concatenate([np.convolve(x, interpolation_compensation(), mode="same"), np.zeros(16)])
+    np.savetxt(src, np.column_stack([np.arange(len(padded)) / rate, padded]), fmt="%.10e")
+    step = 1 / rate
+    cir, raw = work / f"{name}.cir", work / f"{name}.raw"
+    netlist = template.substitute(
+        params,
+        SOURCE=f'A_IN %v([in]) insrc\n.model insrc filesource (file="{src}" amploffset=[0] amplscale=[1] '
+        "timeoffset=0 timescale=1 timerelative=false amplstep=false)",
+        # Tight tolerances and a quarter-sample maximum step keep output interpolation error
+        # below 0.002 dB at 20 kHz.
+        ANALYSIS=".options interp reltol=1e-6 abstol=1e-15 vntol=1e-9\n.save v(out)\n"
+        f".tran {step:.12e} {(len(x) - 1) * step:.12e} 0 {step / 4:.12e}\n"
+        f".control\nset filetype=binary\nrun\nwrite {raw} v(out)\nquit\n.endc",
+    )
+    cir.write_text(netlist)
+    result = subprocess.run(["ngspice", "-b", str(cir)], check=False, capture_output=True, text=True)
+    y = read_raw(raw, "v(out)") if raw.exists() else np.empty(0)
+    if result.returncode != 0 or len(y) != len(x):
+        raise RuntimeError(f"ngspice failed on {name} (exit {result.returncode}):\n{result.stdout[-2000:]}")
+    return y
+
+
+def operating_point(netlist: Path, params: dict) -> str:
+    """ngspice's DC operating point for the netlist with the input at 0 V."""
+    text = Template(netlist.read_text()).substitute(
+        params, SOURCE="VIN in 0 DC 0", ANALYSIS=".control\nop\nprint all\nquit\n.endc"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        cir = Path(tmp) / "op.cir"
+        cir.write_text(text)
+        out = subprocess.run(["ngspice", "-b", str(cir)], check=False, capture_output=True, text=True).stdout
+    return "\n".join(line for line in out.splitlines() if " = " in line)
+
+
+def render(netlist: Path, stimulus: np.ndarray, manifest: dict, params: dict, jobs: int | None = None) -> np.ndarray:
+    fs = manifest["sample_rate"]
+    rate = fs * OVERSAMPLE
+    up = upsample(stimulus, fs)
+    template = Template(netlist.read_text())
+    gap = int(0.5 * fs)
+    out = np.zeros_like(up)
+    with tempfile.TemporaryDirectory() as tmp, ProcessPoolExecutor(jobs or os.cpu_count()) as pool:
+        work = Path(tmp)
+        futures = []
+        for i, sec in enumerate(manifest["sections"]):
+            a = sec["start"] * OVERSAMPLE
+            b = min((sec["start"] + sec["length"] + gap) * OVERSAMPLE, len(up))
+            futures.append((a, b, pool.submit(run_section, template, params, up[a:b], rate, work, f"s{i:03d}")))
+        for a, b, f in futures:
+            out[a:b] = f.result()
+    return downsample(out, fs)

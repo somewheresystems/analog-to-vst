@@ -1,0 +1,19 @@
+[project]
+name = "analog-harness"
+version = "0.1.0"
+description = "Test signals, SPICE references and validation reports for circuit models"
+requires-python = ">=3.13"
+dependencies = ["numpy", "scipy", "soundfile", "matplotlib"]
+
+[project.scripts]
+harness = "analog_harness.cli:main"
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 120

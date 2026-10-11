@@ -1,0 +1,5 @@
+# Knob settings to validate: a name, then control=rotation pairs (0 = fully counter-clockwise,
+# 1 = fully clockwise). Controls not listed use their defaults. Cover the extremes.
+default
+max gain=1 level=1
+min gain=0 level=0.5

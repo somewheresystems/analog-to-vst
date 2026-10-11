@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tests/check_skill.py
+      - run: shellcheck template/validate.sh template/install.sh
+
+  template:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libgl-dev libjack-dev libx11-xcb-dev libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+      - name: Scaffold a project the way the skill does
+        run: python3 scripts/new_project.py "$RUNNER_TEMP/demo" --name "Demo Drive"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ runner.temp }}/demo
+      - name: Test and bundle the scaffolded project
+        working-directory: ${{ runner.temp }}/demo
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+          cargo xtask bundle plugin --release
+          test -d "target/bundled/Demo Drive.vst3" && test -d "target/bundled/Demo Drive.clap"
+
+  harness:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: template/harness
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ngspice
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
+  validate-example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ngspice
+      - uses: astral-sh/setup-uv@v6
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: template
+      - name: Validate the example circuit against SPICE (default knobs)
+        working-directory: template
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          echo default > "$RUNNER_TEMP/settings.txt"
+          SETTINGS="$RUNNER_TEMP/settings.txt" ./validate.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: example-validation
+          path: |
+            template/validation/*/report.md
+            template/validation/*/*.png
+            template/validation/summary.md

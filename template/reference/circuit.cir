@@ -1,0 +1,44 @@
+* Example clipper: op-amp gain stage into a diode clipper to ground, gain and level pots.
+* SPICE reference for dsp/src/model.rs. Keep the two in step: same parts, values and pot formulas.
+* Placeholders (dollar-prefixed names) are filled by the harness: SOURCE and ANALYSIS by the
+* runner, one per control (upper-cased control name) with its physical value from the model.
+*
+* Shared modeling assumptions (the DSP model uses the same):
+* - op-amp: single pole, 100 dB open-loop gain, 3 MHz GBW, no rail clipping
+* - ideal 9 V supply, voltage-source input, 1 Mohm load on the output
+* - 0 dBFS = 0.2 V at the input; the gain range keeps the op-amp inside its rails, since rail
+*   clipping isn't modeled
+
+.subckt opamp inp inn out
+G1 0 p inp inn 100
+Rp p 0 1k
+Cp p 0 5.305u
+E1 out 0 p 0 1
+.ends
+
+.model D1N4148 D(Is=2.52n Rs=0.568 N=1.752 Cjo=4p M=0.4 tt=20n)
+
+VCC vcc 0 DC 9
+RBIAS1 vcc vref 100k
+RBIAS2 vref 0 100k
+CBIAS vref 0 10u
+
+$SOURCE
+CIN in a 10n
+RIN a vref 1meg
+XU1 a m o opamp
+RG m g 4.7k
+CG g vref 47n
+RGAIN m o {max($GAIN, 1)}
+
+CO o d 1u
+RD d c 10k
+D1 c 0 D1N4148
+D2 0 c D1N4148
+CC c 0 1n
+RLEVEL_TOP c out {max(10k * (1 - $LEVEL), 1)}
+RLEVEL_BOTTOM out 0 {max(10k * $LEVEL, 1)}
+RL out 0 1meg
+
+$ANALYSIS
+.end

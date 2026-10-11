@@ -1,0 +1,6 @@
+/target
+/validation
+*.wav
+.DS_Store
+__pycache__/
+.venv/
